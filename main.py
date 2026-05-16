@@ -9,12 +9,10 @@ from dotenv import load_dotenv
 # ==========================================
 # 1. 初期設定とランダムアワードの抽選
 # ==========================================
-# .envファイルから環境変数を読み込む
 load_dotenv()
 SLACK_TOKEN = os.environ.get("SLACK_TOKEN")
 client = WebClient(token=SLACK_TOKEN)
 
-# 送信先のチャンネル
 TARGET_CHANNEL = "#times-猪田-timesランキング開発"
 
 JST = timezone(timedelta(hours=+9), 'JST')
@@ -26,7 +24,7 @@ ts_one_week = one_week_ago.timestamp()
 ts_two_weeks = two_weeks_ago.timestamp()
 
 AWARDS_LIST = {
-    "emoji": "絵文字コレクター賞🎨", "lone": "独り言マスター賞🐺", 
+    "emoji": "絵文字コレクター賞🎨", "lone_wolf": "独り言マスター賞🐺", 
     "curiosity": "クエスチョン賞❓", "tech": "コード共有賞💻", 
     "news": "情報ハブ賞🔗", "visual": "メディアクリエイター賞📷", 
     "early": "朝活マスター賞🌅", "night": "深夜の番人賞🦉"
@@ -34,7 +32,7 @@ AWARDS_LIST = {
 
 AWARDS_DESC = {
     "emoji": "色々な種類の絵文字でリアクションをもらった人です！",
-    "lone": "誰からもリアクションや返信がつかなくてもめげずに発言した人です！",
+    "lone_wolf": "誰からもリアクションや返信がつかなくてもめげずに発言した人です！",
     "curiosity": "発言の中に「？」が一番多く、たくさん質問や問題提起をした人です！",
     "tech": "コードブロック（```）を一番多く使い、技術的な共有をしてくれた人です！",
     "news": "URLを一番多く共有し、情報収集・発信に貢献してくれた人です！",
@@ -73,6 +71,7 @@ user_stats = {}
 
 for user_name, channel_ids in user_channels.items():
     stats = {
+        "channel_id": channel_ids[0], # ★追加: リンク用に代表チャンネルのIDを保存
         "current_score": 0, "past_score": 0, "current_msgs": 0, "threads": 0,
         "reactions_count": 0,
         "emoji_types": set(), "lone_wolf": 0, "curiosity": 0, "tech": 0,
@@ -154,6 +153,11 @@ def get_winner(sort_key, min_msg=0, is_length=False):
         winner = max(valid_users.items(), key=lambda x: x[1][sort_key])
         return winner[0], winner[1][sort_key]
 
+# リンク生成用ヘルパー関数
+def get_user_link(name):
+    if name == "該当者なし": return name
+    return f"<#{user_stats[name]['channel_id']}>"
+
 sorted_overall = sorted(user_stats.items(), key=lambda x: x[1]["current_score"], reverse=True)
 
 for k, v in user_stats.items(): v["growth"] = v["current_score"] - v["past_score"]
@@ -169,38 +173,28 @@ if weekly_random_award == "emoji":
 else:
     rand_winner, rand_val = get_winner(weekly_random_award)
 
-# テキストの組み立て
+# ==========================================
+# 5. メッセージの組み立て
+# ==========================================
 slack_msg = "==============================\n"
 slack_msg += "🎉 *今週のtimes盛り上がりランキング* 🎉\n"
 slack_msg += "==============================\n\n"
 
 slack_msg += "👑 *【総合ランキング トップ3】*\n"
 for i, (name, stats) in enumerate(sorted_overall[:3]):
-    slack_msg += f"第{i+1}位: *{name}* さん\n"
+    # ★「さん」を消して、<#ID> 形式に変更
+    slack_msg += f"第{i+1}位: <#{stats['channel_id']}>\n"
     slack_msg += f"　総合スコア: {stats['current_score']}pt (発言: {stats['current_msgs']}回 / 返信: {stats['threads']}回 / リアクション: {stats['reactions_count']}回)\n\n"
 
 slack_msg += "*今週のピックアップ*\n\n"
-slack_msg += f"🚀急上昇賞: *{growth_winner}* さん (先週比: +{growth_val}pt)\n\n"
-slack_msg += f"📚議論メーカー賞: *{thread_winner}* さん (スレッド化率: {thread_val:.1f}%)\n\n"
-slack_msg += f"🎲{random_award_name}: *{rand_winner}* さん (記録: {rand_val})\n"
+slack_msg += f"🚀急上昇賞: {get_user_link(growth_winner)} (先週比: +{growth_val}pt)\n\n"
+slack_msg += f"📚議論メーカー賞: {get_user_link(thread_winner)} (スレッド化率: {thread_val:.1f}%)\n\n"
+slack_msg += f"🎲{random_award_name}: {get_user_link(rand_winner)} (記録: {rand_val})\n"
 slack_msg += f"　💬 {random_award_desc}\n"
 
 # ==========================================
-# 5. 結果の出力・送信モード切り替え
-# ==========================================
-
-# --------------------------------------------------
-# ▼ モードA：テスト用（ターミナルに表示するだけ）
-# --------------------------------------------------
-print("\n▼ 送信予定のメッセージ ▼\n")
-print(slack_msg)
-print("\n※ 現在はテストモードのため、Slackには送信されていません。")
-
-# --------------------------------------------------
 # ▼ モードB：本番用（Slackに送信する）
-# 本番稼働時は、下の """ （2箇所）を消して有効化してください。
-# --------------------------------------------------
-"""
+# ==========================================
 try:
     print("\nSlackに送信しています...")
     client.chat_postMessage(
@@ -210,4 +204,3 @@ try:
     print(f"✅ {TARGET_CHANNEL} への送信が完了しました！")
 except SlackApiError as e:
     print(f"⚠️ 送信エラーが発生しました: {e.response['error']}")
-"""
