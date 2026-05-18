@@ -13,7 +13,7 @@ load_dotenv()
 SLACK_TOKEN = os.environ.get("SLACK_TOKEN")
 client = WebClient(token=SLACK_TOKEN)
 
-TARGET_CHANNEL = "#times-猪田-timesランキング開発"
+TARGET_CHANNEL = "#14-気軽な会話"
 
 JST = timezone(timedelta(hours=+9), 'JST')
 now = datetime.now(JST)
